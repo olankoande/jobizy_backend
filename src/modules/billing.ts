@@ -172,7 +172,7 @@ export function billingRouter() {
     authRequired,
     asyncHandler(async (req, res) => {
       const userId = req.user!.id;
-      const subscriptionId = req.params.id;
+      const subscriptionId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
       const payload = cancelSchema.parse(req.body);
 
       const [hasStripeCol, hasCancelCol, hasCancelledAt, hasCancelBy, hasCancelReason, hasCancelNote] = await Promise.all([

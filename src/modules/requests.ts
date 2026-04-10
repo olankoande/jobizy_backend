@@ -574,7 +574,7 @@ export function requestsRouter() {
           );
           const [rows] = await connection.query<any[]>(`SELECT * FROM requests WHERE id = ?`, [requestId]);
           const publishedRequest = (rows as any[])[0];
-          await runMatchingForRequest(connection, publishedRequest.id, publishedRequest.service_id, publishedRequest.zone_id, publishedRequest.title);
+          await runMatchingForRequest(connection, publishedRequest);
           await createInAppNotification(connection, req.user!.id, "request_published", "Demande publiee", publishedRequest.title);
           return mapRequestRow(publishedRequest);
         }
@@ -823,10 +823,7 @@ export function requestsRouter() {
         const publishedRequest = (rows as any[])[0];
         const matchesCreated = await runMatchingForRequest(
           connection,
-          publishedRequest.id,
-          publishedRequest.service_id,
-          publishedRequest.zone_id,
-          publishedRequest.title,
+          publishedRequest,
         );
         await createInAppNotification(connection, req.user!.id, "request_published", "Demande publiee", publishedRequest.title);
         return { request: publishedRequest, matches_created: matchesCreated };
@@ -876,10 +873,7 @@ export function requestsRouter() {
         const publishedRequest = (rows as any[])[0];
         const matchesCreated = await runMatchingForRequest(
           connection,
-          publishedRequest.id,
-          publishedRequest.service_id,
-          publishedRequest.zone_id,
-          publishedRequest.title,
+          publishedRequest,
         );
         await createInAppNotification(connection, req.user!.id, "request_published", "Demande publiee", publishedRequest.title);
         return { request: publishedRequest, matches_created: matchesCreated, already_published: false };
@@ -1066,7 +1060,7 @@ export function requestsRouter() {
         ]);
 
         const quoteFields = ["id", "request_id", "provider_profile_id", "message", "status"];
-        const quoteValues: unknown[] = [quoteId, requestRow.id, profile.id, payload.message, "sent"];
+        const quoteValues: Array<string | number | null> = [quoteId, requestRow.id, profile.id, payload.message, "sent"];
 
         if (quoteCols.hasEstimatedPriceCents) {
           quoteFields.push("estimated_price_cents");
