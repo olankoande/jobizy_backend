@@ -10,7 +10,7 @@ async function start() {
   await ensureAdminAccessSchema();
   await ensureReferralSchema();
 
-  const port = Number(process.env.PORT ?? 3001);
+  const port = Number(process.env.PORT ?? 3000);
   const app = createApp();
 
   app.listen(port, () => {
