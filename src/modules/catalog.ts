@@ -127,7 +127,7 @@ export function catalogRouter() {
             COALESCE((
               SELECT JSON_ARRAYAGG(service_name)
               FROM (
-                SELECT DISTINCT s.name AS service_name
+                SELECT DISTINCT s.name AS service_name, s.sort_order
                 FROM provider_services ps
                 JOIN services s ON s.id = ps.service_id
                 WHERE ps.provider_profile_id = pp.id AND ps.status = 'active' AND s.status = 'active'
@@ -138,7 +138,7 @@ export function catalogRouter() {
             COALESCE((
               SELECT JSON_ARRAYAGG(zone_name)
               FROM (
-                SELECT DISTINCT z.name AS zone_name
+                SELECT DISTINCT z.name AS zone_name, z.sort_order
                 FROM provider_zones pz
                 JOIN zones z ON z.id = pz.zone_id
                 WHERE pz.provider_profile_id = pp.id AND z.status = 'active'
@@ -166,7 +166,7 @@ export function catalogRouter() {
             COALESCE((
               SELECT JSON_ARRAYAGG(service_name)
               FROM (
-                SELECT DISTINCT s.name AS service_name
+                SELECT DISTINCT s.name AS service_name, s.sort_order
                 FROM provider_zones pz
                 JOIN provider_services ps ON ps.provider_profile_id = pz.provider_profile_id AND ps.status = 'active'
                 JOIN services s ON s.id = ps.service_id AND s.status = 'active'
