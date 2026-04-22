@@ -14,6 +14,8 @@ type EventEmailPayload = {
   type: string;
   title: string;
   body: string;
+  locale?: string;
+  role?: "client" | "provider";
   connection?: PoolConnection | null;
   attachments?: Array<{
     filename: string;
@@ -391,22 +393,27 @@ function buildEmailHtml(input: {
 </html>`;
 }
 
-function buildEmailContent(type: string, user: UserWithPreferences, title: string, body: string) {
+function buildEmailContent(type: string, user: UserWithPreferences, title: string, body: string, locale = "fr-CA", role?: "client" | "provider") {
   const recipient = formatRecipientName(user);
-  const appBaseUrl = process.env.FRONTEND_URL ?? process.env.APP_BASE_URL ?? "http://localhost:5173";
+  const base = (process.env.FRONTEND_URL ?? process.env.APP_BASE_URL ?? "http://localhost:5173").replace(/\/$/, "");
+  const app = `${base}/${locale}/app`;
+  const pro = `${base}/${locale}/pro`;
+  // For role-ambiguous emails, use role hint when provided
+  const missionsUrl = role === "provider" ? `${pro}/missions` : `${app}/missions`;
+  const messagesUrl = role === "provider" ? `${pro}/messages` : `${app}/messages`;
 
   switch (type) {
     case "request_publication_payment_succeeded":
       return {
         subject: "Paiement confirme pour votre demande Jobizy",
-        text: `Bonjour ${recipient},\n\nLe paiement de publication de votre demande a bien ete confirme.\n\n${body}\n\nVous pouvez suivre votre demande ici : ${appBaseUrl}\n\nL'equipe Jobizy`,
+        text: `Bonjour ${recipient},\n\nLe paiement de publication de votre demande a bien ete confirme.\n\n${body}\n\nVous pouvez suivre votre demande ici : ${app}/demandes\n\nL'equipe Jobizy`,
         html: buildEmailHtml({
           eyebrow: "Confirmation de paiement",
           title: "Votre demande est prete a avancer",
           lead: `Bonjour ${recipient}, le paiement de publication a bien ete confirme.`,
           body: `${body}\n\nVotre demande va maintenant pouvoir suivre son parcours normal sur Jobizy.`,
           ctaLabel: "Voir ma demande",
-          ctaUrl: appBaseUrl,
+          ctaUrl: `${app}/demandes`,
           accent: "#b45309",
           statusLabel: "Paiement confirme",
         }),
@@ -414,19 +421,29 @@ function buildEmailContent(type: string, user: UserWithPreferences, title: strin
     case "request_publication_payment_failed":
       return {
         subject: "Echec du paiement de publication Jobizy",
-        text: `Bonjour ${recipient},\n\nLe paiement de publication de votre demande a echoue.\n\n${body}\n\nVous pouvez reessayer depuis votre espace Jobizy : ${appBaseUrl}\n\nL'equipe Jobizy`,
+        text: `Bonjour ${recipient},\n\nLe paiement de publication de votre demande a echoue.\n\n${body}\n\nVous pouvez reessayer depuis votre espace Jobizy : ${app}/demandes\n\nL'equipe Jobizy`,
+        html: buildEmailHtml({
+          eyebrow: "Echec du paiement",
+          title: "Le paiement de publication a echoue",
+          lead: `Bonjour ${recipient}, le paiement de publication de votre demande a echoue.`,
+          body: `${body}\n\nVous pouvez reessayer la publication depuis votre espace.`,
+          ctaLabel: "Retourner a mes demandes",
+          ctaUrl: `${app}/demandes`,
+          accent: "#dc2626",
+          statusLabel: "Echec du paiement",
+        }),
       };
     case "subscription_created":
       return {
         subject: "Confirmation de votre abonnement Jobizy",
-        text: `Bonjour ${recipient},\n\nVotre abonnement Jobizy est maintenant actif.\n\n${body}\n\nVous pouvez suivre votre abonnement ici : ${appBaseUrl}\n\nL'equipe Jobizy`,
+        text: `Bonjour ${recipient},\n\nVotre abonnement Jobizy est maintenant actif.\n\n${body}\n\nVous pouvez suivre votre abonnement ici : ${pro}/abonnement\n\nL'equipe Jobizy`,
         html: buildEmailHtml({
           eyebrow: "Abonnement active",
           title: "Bienvenue dans votre nouvel abonnement",
           lead: `Bonjour ${recipient}, votre abonnement Jobizy est maintenant actif.`,
           body: `${body}\n\nVotre espace est pret et votre formule est bien prise en compte.`,
           ctaLabel: "Ouvrir mon abonnement",
-          ctaUrl: appBaseUrl,
+          ctaUrl: `${pro}/abonnement`,
           accent: "#0f766e",
           statusLabel: "Abonnement actif",
         }),
@@ -434,14 +451,14 @@ function buildEmailContent(type: string, user: UserWithPreferences, title: strin
     case "subscription_renewed":
       return {
         subject: "Renouvellement de votre abonnement Jobizy",
-        text: `Bonjour ${recipient},\n\nLe paiement de renouvellement de votre abonnement a bien ete confirme.\n\n${body}\n\nVous pouvez suivre votre abonnement ici : ${appBaseUrl}\n\nL'equipe Jobizy`,
+        text: `Bonjour ${recipient},\n\nLe paiement de renouvellement de votre abonnement a bien ete confirme.\n\n${body}\n\nVous pouvez suivre votre abonnement ici : ${pro}/abonnement\n\nL'equipe Jobizy`,
         html: buildEmailHtml({
           eyebrow: "Renouvellement confirme",
           title: "Votre formule continue sans interruption",
           lead: `Bonjour ${recipient}, le renouvellement de votre abonnement a bien ete confirme.`,
           body: `${body}\n\nVotre acces reste actif et votre espace continue de fonctionner normalement.`,
           ctaLabel: "Consulter mon abonnement",
-          ctaUrl: appBaseUrl,
+          ctaUrl: `${pro}/abonnement`,
           accent: "#0f766e",
           statusLabel: "Renouvellement valide",
         }),
@@ -449,14 +466,14 @@ function buildEmailContent(type: string, user: UserWithPreferences, title: strin
     case "invoice_available":
       return {
         subject: "Votre recu Jobizy est disponible",
-        text: `Bonjour ${recipient},\n\n${body}\n\nVous pouvez aussi retrouver vos factures dans Jobizy : ${appBaseUrl}\n\nL'equipe Jobizy`,
+        text: `Bonjour ${recipient},\n\n${body}\n\nVous pouvez aussi retrouver vos factures dans Jobizy : ${pro}/abonnement\n\nL'equipe Jobizy`,
         html: buildEmailHtml({
           eyebrow: "Facture disponible",
           title: "Votre recu est pret",
           lead: `Bonjour ${recipient}, votre justificatif de paiement est disponible.`,
           body: `${body}\n\nLe PDF est joint a cet email lorsque disponible, et reste aussi accessible depuis votre espace Jobizy.`,
           ctaLabel: "Voir mes factures",
-          ctaUrl: appBaseUrl,
+          ctaUrl: `${pro}/abonnement`,
           accent: "#1d4ed8",
           statusLabel: "Recu joint",
         }),
@@ -466,14 +483,14 @@ function buildEmailContent(type: string, user: UserWithPreferences, title: strin
     case "new_quote_received":
       return {
         subject: "Nouvelle offre recue sur votre demande",
-        text: `Bonjour ${recipient},\n\nVous avez recu une nouvelle offre sur votre demande "${body}".\n\nConnectez-vous a Jobizy pour la consulter et choisir votre prestataire : ${appBaseUrl}\n\nL'equipe Jobizy`,
+        text: `Bonjour ${recipient},\n\nVous avez recu une nouvelle offre sur votre demande "${body}".\n\nConnectez-vous a Jobizy pour la consulter et choisir votre prestataire : ${app}/demandes\n\nL'equipe Jobizy`,
         html: buildEmailHtml({
           eyebrow: "Nouvelle offre",
           title: "Un prestataire vous a envoye une offre",
           lead: `Bonjour ${recipient}, vous avez recu une nouvelle offre sur votre demande.`,
           body: `Un prestataire a repondu a votre demande "${body}".\n\nConnectez-vous pour consulter l'offre et choisir votre prestataire.`,
           ctaLabel: "Voir l'offre",
-          ctaUrl: appBaseUrl,
+          ctaUrl: `${app}/demandes`,
           accent: "#0f766e",
           statusLabel: "Nouvelle offre",
         }),
@@ -481,14 +498,14 @@ function buildEmailContent(type: string, user: UserWithPreferences, title: strin
     case "quote_rejected":
       return {
         subject: "Votre offre n'a pas ete retenue",
-        text: `Bonjour ${recipient},\n\nVotre offre sur la demande "${body}" n'a pas ete retenue par le client.\n\nD'autres opportunites vous attendent sur Jobizy : ${appBaseUrl}\n\nL'equipe Jobizy`,
+        text: `Bonjour ${recipient},\n\nVotre offre sur la demande "${body}" n'a pas ete retenue par le client.\n\nD'autres opportunites vous attendent sur Jobizy : ${pro}/demandes\n\nL'equipe Jobizy`,
         html: buildEmailHtml({
           eyebrow: "Offre non retenue",
           title: "Le client a choisi un autre prestataire",
           lead: `Bonjour ${recipient}, votre offre n'a pas ete selectionnee cette fois.`,
           body: `Votre offre sur la demande "${body}" n'a pas ete retenue.\n\nNe vous decouragez pas — de nouvelles demandes correspondant a votre profil sont disponibles.`,
           ctaLabel: "Voir mes opportunites",
-          ctaUrl: appBaseUrl,
+          ctaUrl: `${pro}/demandes`,
           accent: "#6b7280",
           statusLabel: "Offre non retenue",
         }),
@@ -496,14 +513,14 @@ function buildEmailContent(type: string, user: UserWithPreferences, title: strin
     case "mission_confirmed":
       return {
         subject: "Felicitations ! Vous avez obtenu une mission",
-        text: `Bonjour ${recipient},\n\nVotre offre a ete acceptee pour la mission "${body}".\n\nRetrouvez le detail de votre mission dans Jobizy : ${appBaseUrl}\n\nL'equipe Jobizy`,
+        text: `Bonjour ${recipient},\n\nVotre offre a ete acceptee pour la mission "${body}".\n\nRetrouvez le detail de votre mission dans Jobizy : ${pro}/missions\n\nL'equipe Jobizy`,
         html: buildEmailHtml({
           eyebrow: "Mission confirmee",
           title: "Votre offre a ete acceptee !",
           lead: `Bonjour ${recipient}, felicitations — le client a choisi votre offre.`,
           body: `Vous avez obtenu la mission "${body}".\n\nRendez-vous dans votre espace Jobizy pour consulter les details et coordonner avec votre client.`,
           ctaLabel: "Voir ma mission",
-          ctaUrl: appBaseUrl,
+          ctaUrl: `${pro}/missions`,
           accent: "#0f766e",
           statusLabel: "Mission confirmee",
         }),
@@ -512,14 +529,14 @@ function buildEmailContent(type: string, user: UserWithPreferences, title: strin
     case "new_message_received":
       return {
         subject: "Vous avez recu un nouveau message sur Jobizy",
-        text: `Bonjour ${recipient},\n\nVous avez recu un nouveau message.\n\nConnectez-vous pour repondre : ${appBaseUrl}\n\nL'equipe Jobizy`,
+        text: `Bonjour ${recipient},\n\nVous avez recu un nouveau message.\n\nConnectez-vous pour repondre : ${messagesUrl}\n\nL'equipe Jobizy`,
         html: buildEmailHtml({
           eyebrow: "Nouveau message",
           title: "Vous avez un message",
           lead: `Bonjour ${recipient}, quelqu'un vous a envoye un message sur Jobizy.`,
           body: `Connectez-vous pour lire et repondre au message.`,
           ctaLabel: "Voir le message",
-          ctaUrl: appBaseUrl,
+          ctaUrl: messagesUrl,
           accent: "#1d4ed8",
           statusLabel: "Message non lu",
         }),
@@ -529,14 +546,14 @@ function buildEmailContent(type: string, user: UserWithPreferences, title: strin
     case "request_matched":
       return {
         subject: "Nouvelle demande disponible pour vous sur Jobizy",
-        text: `Bonjour ${recipient},\n\nUne nouvelle demande correspond a votre profil : "${body}".\n\nConsultez-la et envoyez votre offre dans Jobizy : ${appBaseUrl}\n\nL'equipe Jobizy`,
+        text: `Bonjour ${recipient},\n\nUne nouvelle demande correspond a votre profil : "${body}".\n\nConsultez-la et envoyez votre offre dans Jobizy : ${pro}/demandes\n\nL'equipe Jobizy`,
         html: buildEmailHtml({
           eyebrow: "Nouvelle opportunite",
           title: "Une demande correspond a votre profil",
           lead: `Bonjour ${recipient}, une nouvelle demande est disponible pour vous.`,
           body: `La demande "${body}" correspond a vos competences et votre zone d'intervention.\n\nSoyez parmi les premiers a envoyer votre offre !`,
           ctaLabel: "Voir la demande",
-          ctaUrl: appBaseUrl,
+          ctaUrl: `${pro}/demandes`,
           accent: "#b45309",
           statusLabel: "Nouvelle demande",
         }),
@@ -544,14 +561,14 @@ function buildEmailContent(type: string, user: UserWithPreferences, title: strin
     case "subscription_updated":
       return {
         subject: "Votre abonnement Jobizy est actif",
-        text: `Bonjour ${recipient},\n\nVotre abonnement "${body}" est maintenant actif.\n\nAccedez a votre espace prestataire : ${appBaseUrl}\n\nL'equipe Jobizy`,
+        text: `Bonjour ${recipient},\n\nVotre abonnement "${body}" est maintenant actif.\n\nAccedez a votre espace prestataire : ${pro}/abonnement\n\nL'equipe Jobizy`,
         html: buildEmailHtml({
           eyebrow: "Abonnement active",
           title: "Votre abonnement est actif",
           lead: `Bonjour ${recipient}, votre abonnement Jobizy est bien pris en compte.`,
           body: `Votre formule "${body}" est maintenant active.\n\nVous pouvez recevoir des demandes et envoyer des offres depuis votre espace prestataire.`,
           ctaLabel: "Acceder a mon espace",
-          ctaUrl: appBaseUrl,
+          ctaUrl: `${pro}/abonnement`,
           accent: "#0f766e",
           statusLabel: "Abonnement actif",
         }),
@@ -559,14 +576,14 @@ function buildEmailContent(type: string, user: UserWithPreferences, title: strin
     case "dispute_opened":
       return {
         subject: "Un litige a ete ouvert sur Jobizy",
-        text: `Bonjour ${recipient},\n\nUn litige a ete ouvert concernant : ${body}.\n\nNotre equipe va examiner la situation. Retrouvez le detail dans Jobizy : ${appBaseUrl}\n\nL'equipe Jobizy`,
+        text: `Bonjour ${recipient},\n\nUn litige a ete ouvert concernant : ${body}.\n\nNotre equipe va examiner la situation. Retrouvez le detail dans Jobizy : ${missionsUrl}\n\nL'equipe Jobizy`,
         html: buildEmailHtml({
           eyebrow: "Litige ouvert",
           title: "Un litige a ete signale",
           lead: `Bonjour ${recipient}, un litige a ete ouvert sur une mission vous concernant.`,
           body: `Categorie du litige : ${body}.\n\nNotre equipe va examiner la situation et vous contactera si necessaire. Vous pouvez suivre l'avancement dans votre espace Jobizy.`,
           ctaLabel: "Voir le litige",
-          ctaUrl: appBaseUrl,
+          ctaUrl: missionsUrl,
           accent: "#dc2626",
           statusLabel: "Litige en cours",
         }),
@@ -574,14 +591,14 @@ function buildEmailContent(type: string, user: UserWithPreferences, title: strin
     case "request_published":
       return {
         subject: "Votre demande est publiee sur Jobizy",
-        text: `Bonjour ${recipient},\n\nVotre demande "${body}" a bien ete publiee. Les prestataires vont pouvoir vous envoyer des offres.\n\nSuivez votre demande ici : ${appBaseUrl}\n\nL'equipe Jobizy`,
+        text: `Bonjour ${recipient},\n\nVotre demande "${body}" a bien ete publiee. Les prestataires vont pouvoir vous envoyer des offres.\n\nSuivez votre demande ici : ${app}/demandes\n\nL'equipe Jobizy`,
         html: buildEmailHtml({
           eyebrow: "Demande publiee",
           title: "Votre demande est en ligne",
           lead: `Bonjour ${recipient}, votre demande a bien ete publiee.`,
           body: `Votre demande "${body}" est maintenant visible par les prestataires.\n\nVous recevrez une notification des qu'un prestataire vous envoie une offre.`,
           ctaLabel: "Suivre ma demande",
-          ctaUrl: appBaseUrl,
+          ctaUrl: `${app}/demandes`,
           accent: "#0f766e",
           statusLabel: "Publiee",
         }),
@@ -589,14 +606,14 @@ function buildEmailContent(type: string, user: UserWithPreferences, title: strin
     case "reminder_unread_quote_48h":
       return {
         subject: "Des prestataires attendent votre reponse sur Jobizy",
-        text: `Bonjour ${recipient},\n\n${body}\n\nConnectez-vous pour consulter les offres : ${appBaseUrl}\n\nL'equipe Jobizy`,
+        text: `Bonjour ${recipient},\n\n${body}\n\nConnectez-vous pour consulter les offres : ${app}/demandes\n\nL'equipe Jobizy`,
         html: buildEmailHtml({
           eyebrow: "Rappel",
           title: "Des prestataires attendent votre reponse",
           lead: `Bonjour ${recipient}, vous avez des offres non consultees sur votre demande.`,
           body: `${body}\n\nConnectez-vous pour comparer les offres et choisir le prestataire qui vous convient.`,
           ctaLabel: "Voir les offres",
-          ctaUrl: appBaseUrl,
+          ctaUrl: `${app}/demandes`,
           accent: "#b45309",
           statusLabel: "Offres en attente",
         }),
@@ -604,14 +621,14 @@ function buildEmailContent(type: string, user: UserWithPreferences, title: strin
     case "reminder_no_decision_5d":
       return {
         subject: "Votre demande attend votre decision depuis 5 jours",
-        text: `Bonjour ${recipient},\n\n${body}\n\nConnectez-vous pour choisir un prestataire : ${appBaseUrl}\n\nL'equipe Jobizy`,
+        text: `Bonjour ${recipient},\n\n${body}\n\nConnectez-vous pour choisir un prestataire : ${app}/demandes\n\nL'equipe Jobizy`,
         html: buildEmailHtml({
           eyebrow: "Rappel",
           title: "Choisissez votre prestataire",
           lead: `Bonjour ${recipient}, votre demande attend une decision depuis plusieurs jours.`,
           body: `${body}\n\nVos prestataires attendent votre reponse. Connectez-vous pour faire votre choix.`,
           ctaLabel: "Voir ma demande",
-          ctaUrl: appBaseUrl,
+          ctaUrl: `${app}/demandes`,
           accent: "#b45309",
           statusLabel: "Decision en attente",
         }),
@@ -619,14 +636,14 @@ function buildEmailContent(type: string, user: UserWithPreferences, title: strin
     case "reminder_expiring_24h":
       return {
         subject: "Urgent : votre demande expire dans 24h",
-        text: `Bonjour ${recipient},\n\n${body}\n\nConnectez-vous pour choisir un prestataire maintenant : ${appBaseUrl}\n\nL'equipe Jobizy`,
+        text: `Bonjour ${recipient},\n\n${body}\n\nConnectez-vous pour choisir un prestataire maintenant : ${app}/demandes\n\nL'equipe Jobizy`,
         html: buildEmailHtml({
           eyebrow: "Rappel urgent",
           title: "Votre demande expire bientot !",
           lead: `Bonjour ${recipient}, la date de votre demande approche et des prestataires sont disponibles.`,
           body: `${body}\n\nNe manquez pas votre creneau — choisissez votre prestataire maintenant.`,
           ctaLabel: "Choisir maintenant",
-          ctaUrl: appBaseUrl,
+          ctaUrl: `${app}/demandes`,
           accent: "#dc2626",
           statusLabel: "Urgent — moins de 24h",
         }),
@@ -634,14 +651,14 @@ function buildEmailContent(type: string, user: UserWithPreferences, title: strin
     case "request_cancelled":
       return {
         subject: "Une demande a laquelle vous avez repondu a ete annulee",
-        text: `Bonjour ${recipient},\n\n${body}\n\nConsultez vos opportunites dans Jobizy : ${appBaseUrl}\n\nL'equipe Jobizy`,
+        text: `Bonjour ${recipient},\n\n${body}\n\nConsultez vos opportunites dans Jobizy : ${pro}/demandes\n\nL'equipe Jobizy`,
         html: buildEmailHtml({
           eyebrow: "Demande annulee",
           title: "Une demande a ete annulee",
           lead: `Bonjour ${recipient}, la demande pour laquelle vous aviez soumis une offre vient d'etre annulee par le client.`,
           body: `${body}\n\nVotre offre a ete automatiquement archivee. Vous pouvez consulter les autres opportunites disponibles sur Jobizy.`,
           ctaLabel: "Voir mes opportunites",
-          ctaUrl: appBaseUrl,
+          ctaUrl: `${pro}/demandes`,
           accent: "#6b7280",
           statusLabel: "Demande annulee",
         }),
@@ -649,14 +666,14 @@ function buildEmailContent(type: string, user: UserWithPreferences, title: strin
     case "mission_cancelled":
       return {
         subject: "Votre mission a ete annulee",
-        text: `Bonjour ${recipient},\n\n${body}\n\nConsultez vos missions dans Jobizy : ${appBaseUrl}\n\nL'equipe Jobizy`,
+        text: `Bonjour ${recipient},\n\n${body}\n\nConsultez vos missions dans Jobizy : ${missionsUrl}\n\nL'equipe Jobizy`,
         html: buildEmailHtml({
           eyebrow: "Mission annulee",
           title: "La mission a ete annulee",
           lead: `Bonjour ${recipient}, une mission qui vous concernait a ete annulee.`,
           body: `${body}\n\nSi vous avez des questions ou un litige a signaler, vous pouvez contacter le support depuis votre espace Jobizy.`,
           ctaLabel: "Voir mes missions",
-          ctaUrl: appBaseUrl,
+          ctaUrl: missionsUrl,
           accent: "#dc2626",
           statusLabel: "Mission annulee",
         }),
@@ -664,14 +681,14 @@ function buildEmailContent(type: string, user: UserWithPreferences, title: strin
     case "subscription_cancelled":
       return {
         subject: "Votre abonnement Jobizy a ete annule",
-        text: `Bonjour ${recipient},\n\n${body}\n\nGerez votre abonnement ici : ${appBaseUrl}\n\nL'equipe Jobizy`,
+        text: `Bonjour ${recipient},\n\n${body}\n\nGerez votre abonnement ici : ${pro}/abonnement\n\nL'equipe Jobizy`,
         html: buildEmailHtml({
           eyebrow: "Abonnement annule",
           title: "Votre abonnement est en cours d'annulation",
           lead: `Bonjour ${recipient}, votre abonnement Jobizy a ete mis en annulation.`,
           body: `${body}\n\nVous pouvez souscrire a un nouvel abonnement a tout moment depuis votre espace prestataire.`,
           ctaLabel: "Gerer mon abonnement",
-          ctaUrl: appBaseUrl,
+          ctaUrl: `${pro}/abonnement`,
           accent: "#b45309",
           statusLabel: "Abonnement annule",
         }),
@@ -686,14 +703,14 @@ function buildEmailContent(type: string, user: UserWithPreferences, title: strin
           lead: `Bonjour ${recipient},`,
           body,
           ctaLabel: "Ouvrir Jobizy",
-          ctaUrl: appBaseUrl,
+          ctaUrl: `${base}/${locale}`,
           accent: "#6b7280",
         }),
       };
   }
 }
 
-export async function sendEventEmail({ userId, type, title, body, connection, attachments }: EventEmailPayload) {
+export async function sendEventEmail({ userId, type, title, body, locale, role, connection, attachments }: EventEmailPayload) {
   const user = await loadUserWithPreferences(userId, connection);
   if (!user?.email) {
     return false;
@@ -709,7 +726,7 @@ export async function sendEventEmail({ userId, type, title, body, connection, at
 
   const fromEmail = process.env.EMAIL_FROM ?? process.env.MAIL_FROM_EMAIL ?? "no-reply@jobizy.local";
   const fromName = process.env.MAIL_FROM_NAME ?? "Jobizy";
-  const content = buildEmailContent(type, user, title, body);
+  const content = buildEmailContent(type, user, title, body, locale ?? "fr-CA", role);
   const provider = getEmailProvider();
 
   try {

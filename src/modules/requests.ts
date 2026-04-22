@@ -698,8 +698,9 @@ export function requestsRouter() {
 
       const body = req.body as { success_url?: string; cancel_url?: string };
       const frontendUrl = (process.env.FRONTEND_URL ?? "http://localhost:5173").replace(/\/$/, "");
-      const successUrl = (body.success_url ?? `${frontendUrl}/fr-CA/app/demandes?publication_payment=success&request_id=${requestId}`);
-      const cancelUrl = (body.cancel_url ?? `${frontendUrl}/fr-CA/app/demandes?publication_payment=cancelled`);
+      const locale = req.header("Accept-Language")?.includes("en-CA") ? "en-CA" : "fr-CA";
+      const successUrl = (body.success_url ?? `${frontendUrl}/${locale}/app/demandes?publication_payment=success&request_id=${requestId}`);
+      const cancelUrl = (body.cancel_url ?? `${frontendUrl}/${locale}/app/demandes?publication_payment=cancelled`);
 
       const checkoutSession = await stripe.checkout.sessions.create({
         mode: "payment",
@@ -1802,9 +1803,10 @@ export function requestsRouter() {
         [subscriptionId, req.user!.id, providerProfile.id, plan.id],
       );
 
-      const frontendUrl = (process.env.FRONTEND_URL ?? "http://localhost:3003").replace(/\/$/, "");
-      const successUrl = payload.success_url ?? `${frontendUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
-      const cancelUrl = payload.cancel_url ?? `${frontendUrl}/checkout/cancel`;
+      const frontendUrl = (process.env.FRONTEND_URL ?? "http://localhost:5173").replace(/\/$/, "");
+      const checkoutLocale = req.header("Accept-Language")?.includes("en-CA") ? "en-CA" : "fr-CA";
+      const successUrl = payload.success_url ?? `${frontendUrl}/${checkoutLocale}/pro/abonnement?checkout=success`;
+      const cancelUrl = payload.cancel_url ?? `${frontendUrl}/${checkoutLocale}/pro/abonnement?checkout=cancel`;
       const session = await stripe.checkout.sessions.create({
         mode: "subscription",
         line_items: [{ price: priceId, quantity: 1 }],
