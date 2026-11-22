@@ -1340,11 +1340,35 @@ export function requestsRouter() {
     "/missions",
     asyncHandler(async (req, res) => {
       const providerProfile = await queryOne<any>(`SELECT id FROM provider_profiles WHERE user_id = ?`, [req.user!.id]);
+      // Détails de la mission (demande, service, ville, client, prix de l'offre). Colonnes optionnelles vérifiées
+      // pour ne jamais casser la liste si le schéma d'un environnement est plus ancien.
+      const [reqCols, quoteCols] = await Promise.all([
+        Promise.all(
+          ["description", "desired_date", "time_window_start", "time_window_end", "urgency", "work_mode", "budget_min_cents", "budget_max_cents"].map(
+            async (column) => ((await hasColumn("requests", column)) ? column : null),
+          ),
+        ),
+        Promise.all(
+          ["estimated_price_cents", "proposed_time_window"].map(async (column) => ((await hasColumn("quotes", column)) ? column : null)),
+        ),
+      ]);
+      const detailSelect = [
+        ...reqCols.filter((c): c is string => Boolean(c)).map((c) => (c === "description" ? "r.description AS request_description" : `r.${c} AS ${c}`)),
+        ...quoteCols.filter((c): c is string => Boolean(c)).map((c) => (c === "estimated_price_cents" ? "q.estimated_price_cents AS quote_price_cents" : "q.proposed_time_window AS quote_time_window")),
+      ];
       const rows = await query<any>(
-        `SELECT m.*, r.title AS request_title, pp.display_name, pp.business_name
+        `SELECT m.*, r.title AS request_title,
+                ${detailSelect.length > 0 ? detailSelect.join(", ") + "," : ""}
+                s.name AS service_name, z.name AS zone_name,
+                cu.first_name AS client_first_name, cu.last_name AS client_last_name,
+                pp.display_name, pp.business_name
            FROM missions m
            JOIN requests r ON r.id = m.request_id
            JOIN provider_profiles pp ON pp.id = m.provider_profile_id
+           LEFT JOIN services s ON s.id = r.service_id
+           LEFT JOIN zones z ON z.id = r.zone_id
+           LEFT JOIN users cu ON cu.id = m.client_user_id
+           LEFT JOIN quotes q ON q.id = m.quote_id
           WHERE m.client_user_id = ?` + (providerProfile ? " OR m.provider_profile_id = ?" : "") + ` ORDER BY m.updated_at DESC`,
         providerProfile ? [req.user!.id, providerProfile.id] : [req.user!.id],
       );
