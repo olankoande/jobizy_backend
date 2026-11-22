@@ -20,7 +20,7 @@ import { webhooksRouter } from "./modules/webhooks";
 function parseAllowedOrigins() {
   return (process.env.CORS_ALLOWED_ORIGINS ?? "")
     .split(",")
-    .map((value) => value.trim())
+    .map((value) => value.trim().replace(/\/+$/, ""))
     .filter(Boolean);
 }
 
@@ -39,14 +39,16 @@ export function createApp() {
     "/users/me",
   ];
 
-  app.use(helmet());
+  app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
   app.use(
     cors({
       origin(origin, callback) {
-        if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+        if (!origin || allowedOrigins.length === 0 || allowedOrigins.includes(origin.replace(/\/+$/, ""))) {
           return callback(null, true);
         }
-        return callback(new Error("CORS origin not allowed"));
+        console.warn(`[cors] origin not allowed: ${origin} (allowed: ${allowedOrigins.join(", ")})`);
+        // Reply without CORS headers instead of throwing a 500
+        return callback(null, false);
       },
       credentials: allowCredentials,
     }),
