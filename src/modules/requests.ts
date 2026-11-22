@@ -1513,11 +1513,15 @@ export function requestsRouter() {
             ) AS last_message,
             (
               SELECT created_at FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1
-            ) AS last_message_at
+            ) AS last_message_at,
+            (
+              SELECT COUNT(*) FROM messages m
+               WHERE m.conversation_id = c.id AND m.read_at IS NULL AND m.sender_user_id <> ?
+            ) AS unread_count
            FROM conversations c
            LEFT JOIN requests r ON r.id = c.request_id
           WHERE c.client_user_id = ?` + (providerProfile ? " OR c.provider_profile_id = ?" : "") + ` ORDER BY COALESCE(last_message_at, c.updated_at) DESC`,
-        providerProfile ? [req.user!.id, providerProfile.id] : [req.user!.id],
+        providerProfile ? [req.user!.id, req.user!.id, providerProfile.id] : [req.user!.id, req.user!.id],
       );
       return ok(res, rows);
     }),
