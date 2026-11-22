@@ -1,10 +1,8 @@
-import { loadEnvFile } from "./core/env";
+import "./core/load-env";
 import { ensureAdminAccessSchema } from "./core/admin-access";
 import { createApp } from "./app";
 import { startReminders } from "./services/reminders";
 import { ensureReferralSchema } from "./services/referral";
-
-loadEnvFile();
 
 function warnMisconfig() {
   const frontendUrl = process.env.FRONTEND_URL ?? "";
@@ -21,19 +19,32 @@ function warnMisconfig() {
   }
 }
 
-async function start() {
-  await ensureAdminAccessSchema();
-  await ensureReferralSchema();
+async function runStartupMigrations(attempt = 1): Promise<void> {
+  try {
+    await Promise.all([ensureAdminAccessSchema(), ensureReferralSchema()]);
+    console.log("[startup] schema checks done");
+  } catch (error) {
+    const maxAttempts = 5;
+    console.error(`[startup] schema checks failed (attempt ${attempt}/${maxAttempts})`, error);
+    if (attempt < maxAttempts) {
+      setTimeout(() => void runStartupMigrations(attempt + 1), attempt * 5_000);
+    }
+  }
+}
 
+async function start() {
   warnMisconfig();
 
   const port = Number(process.env.PORT ?? 3000);
   const app = createApp();
 
-  app.listen(port, () => {
-    console.log(`Jobizy backend listening on http://localhost:${port}`);
+  // Listen immediately (bind on all interfaces) so the platform healthcheck / frontend
+  // can connect; DB migrations run in the background instead of blocking startup.
+  app.listen(port, "0.0.0.0", () => {
+    console.log(`Jobizy backend listening on port ${port}`);
   });
 
+  void runStartupMigrations();
   startReminders();
 }
 
